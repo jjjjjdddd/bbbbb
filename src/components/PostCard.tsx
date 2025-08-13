@@ -7,6 +7,7 @@ import {
   Box,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 
 interface PostCardProps {
   id: string;
@@ -47,13 +48,19 @@ const PostCard: React.FC<PostCardProps> = ({
       }}
       onClick={handleClick}
     >
-      <CardMedia
-        component="img"
-        height="200"
-        image={imageUrl}
-        alt={title}
-        sx={{ objectFit: 'cover' }}
-      />
+      {imageUrl ? (
+        <CardMedia
+          component="img"
+          height="200"
+          image={imageUrl}
+          alt={title}
+          sx={{ objectFit: 'cover' }}
+        />
+      ) : (
+        <Box sx={{ height: 200, bgcolor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <ImageOutlinedIcon sx={{ color: '#ccc', fontSize: 48 }} />
+        </Box>
+      )}
       <CardContent sx={{ flexGrow: 1 }}>
         <Typography gutterBottom variant="h6" component="h2" noWrap>
           {title}

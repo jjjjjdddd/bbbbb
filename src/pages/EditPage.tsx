@@ -1,80 +1,63 @@
-import React from 'react';
-import {
-  Box, Container, Typography, TextField, IconButton, Button, Dialog, DialogContent, Slider
-} from '@mui/material';
+import React, { useEffect, useState, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { Box, Container, Typography, TextField, IconButton, Button, Dialog, DialogContent } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
-import { useNavigate } from 'react-router-dom';
 import Cropper from 'react-easy-crop';
+import { getCroppedImg } from '../cropUtils';
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 
 const categories = ['공학', '교육', '사회', '예체능', '의약', '인문', '자연'];
 const types = ['과잠/학잠', '전공책', '기자재'];
-const myUid = 'me';
-const MAX_IMAGES = 10;
 
-function getCroppedImg(imageSrc: string, crop: any, zoom: any, aspect = 1): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const image = new window.Image();
-    image.src = imageSrc;
-    image.onload = () => {
-      const canvas = document.createElement('canvas');
-      const scale = image.naturalWidth / image.width;
-      const cropX = crop.x * scale;
-      const cropY = crop.y * scale;
-      const cropWidth = crop.width * scale;
-      const cropHeight = crop.height * scale;
-      canvas.width = cropWidth;
-      canvas.height = cropHeight;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        reject(new Error('Canvas context is null'));
-        return;
-      }
-      // 흰색 배경으로 채우기
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(
-        image,
-        cropX,
-        cropY,
-        cropWidth,
-        cropHeight,
-        0,
-        0,
-        cropWidth,
-        cropHeight
-      );
-      // base64로 반환
-      const base64 = canvas.toDataURL('image/jpeg');
-      resolve(base64);
-    };
-    image.onerror = (err) => {
-      console.error('Image loading failed:', err);
-      alert('이미지를 불러올 수 없습니다.');
-      reject(err);
-    };
-  });
+// Post 타입 정의
+interface Post {
+  id: number;
+  title: string;
+  desc: string;
+  major: string;
+  price: number;
+  images?: string[];
+  image?: string;
 }
 
-const PostRegistration: React.FC = () => {
+export default function EditPage() {
+  const { postId } = useParams<{ postId: string }>();
   const navigate = useNavigate();
-  const [title, setTitle] = React.useState('');
-  const [desc, setDesc] = React.useState('');
-  const [price, setPrice] = React.useState('');
-  const [selectedCategory, setSelectedCategory] = React.useState('');
-  const [selectedType, setSelectedType] = React.useState('');
-  const [previews, setPreviews] = React.useState<string[]>([]);
-  const [croppedImages, setCroppedImages] = React.useState<string[]>([]);
-  const [cropDialogOpen, setCropDialogOpen] = React.useState(false);
-  const [cropImage, setCropImage] = React.useState<string | null>(null);
-  const [cropQueue, setCropQueue] = React.useState<string[]>([]); // 크롭 대기열
-  const [crop, setCrop] = React.useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = React.useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = React.useState<any>(null);
-  const [imageError, setImageError] = React.useState<string | null>(null);
-  const fileInputRef = React.useRef<HTMLInputElement>(null);
-  const [formSubmitted, setFormSubmitted] = React.useState(false);
-  const [showImageError, setShowImageError] = React.useState(false);
+  const [post, setPost] = useState<Post | null>(null);
+  const [title, setTitle] = useState('');
+  const [desc, setDesc] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [price, setPrice] = useState('');
+  const [previews, setPreviews] = useState<string[]>([]);
+  const [croppedImages, setCroppedImages] = useState<string[]>([]);
+  const [cropDialogOpen, setCropDialogOpen] = useState(false);
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cropQueue, setCropQueue] = useState<string[]>([]);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const posts: Post[] = JSON.parse(localStorage.getItem('posts') || '[]');
+    const found = posts.find(p => p.id === Number(postId));
+    if (found) {
+      setPost(found);
+      setTitle(found.title);
+      setDesc(found.desc);
+      setPrice(found.price.toString());
+      setSelectedCategory(found.major.split(' ')[0]);
+      setSelectedType(found.major.split(' ')[1] || types[0]);
+      if (found.images && found.images.length > 0) {
+        setPreviews(found.images);
+        setCroppedImages(found.images);
+      } else if (found.image) {
+        setPreviews([found.image]);
+        setCroppedImages([found.image]);
+      }
+    }
+  }, [postId]);
 
   // 이미지 업로드 핸들러
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -138,7 +121,6 @@ const PostRegistration: React.FC = () => {
     const croppedUrl = await getCroppedImg(cropImage, croppedAreaPixels, zoom);
     setCroppedImages(prev => [...prev, croppedUrl as string]);
     setPreviews(prev => [...prev, croppedUrl as string]);
-    // 다음 이미지가 있으면 크롭, 없으면 닫기
     setCropQueue(prev => {
       const nextQueue = prev.slice(1);
       if (nextQueue.length > 0) {
@@ -182,40 +164,20 @@ const PostRegistration: React.FC = () => {
   const isImagesValid = croppedImages.length > 0 && croppedImages.every(src => typeof src === 'string' && src.startsWith('data:image'));
   const isFormValid = isTitleValid && isDescValid && isPriceValid && isImagesValid;
 
-  // 등록 처리
-  const handleRegister = () => {
-    setFormSubmitted(true);
-    // 필수 입력란(제목, 설명, 가격) 모두 채웠는지 확인
-    const isFieldsValid = isTitleValid && isDescValid && isPriceValid;
-    if (!isFieldsValid) {
-      setShowImageError(false); // 텍스트 입력란이 비어있으면 사진 에러는 절대 안 뜸
-      return;
-    }
-    if (!isImagesValid) {
-      setShowImageError(true); // 텍스트 입력란은 다 채웠고 사진만 없을 때만 사진 에러
-      return;
-    } else {
-      setShowImageError(false);
-    }
-    // base64가 아닌 값이 있으면 등록 자체를 막음
-    const validImages = croppedImages.filter(src => typeof src === 'string' && src.startsWith('data:image'));
-    const saved = localStorage.getItem('posts');
-    const posts = saved ? JSON.parse(saved) : [];
-    const newPost = {
-      id: Date.now(),
+  // 저장 처리
+  const handleSave = () => {
+    if (!isFormValid || !post) return;
+    const posts: Post[] = JSON.parse(localStorage.getItem('posts') || '[]');
+    const updated = posts.map(p => p.id === post.id ? {
+      ...p,
       title,
-      school: '한양여자대학교',
+      desc,
       major: selectedCategory + ' ' + selectedType,
       price: Number(price),
-      marketPrice: 0,
-      isLiked: false,
-      images: validImages, // 여러 장 저장
-      image: validImages[0], // 첫 번째 이미지는 호환성 위해 남김
-      userId: myUid,
-      desc,
-    };
-    console.log('등록되는 게시글:', newPost);
-    localStorage.setItem('posts', JSON.stringify([newPost, ...posts]));
+      images: croppedImages,
+      image: croppedImages[0],
+    } : p);
+    localStorage.setItem('posts', JSON.stringify(updated));
     navigate('/');
   };
 
@@ -229,13 +191,17 @@ const PostRegistration: React.FC = () => {
         <Box
           sx={{
             width: '100%',
-            minHeight: 180,
+            minHeight: 140,
+            bgcolor: '#f5f5f5',
+            borderRadius: 3,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             mb: 2,
             mt: 4,
+            overflowX: 'auto',
             px: 1,
+            flexDirection: 'column',
           }}
         >
           {previews.length === 0 ? (
@@ -270,97 +236,44 @@ const PostRegistration: React.FC = () => {
               />
             </Box>
           ) : (
-            <Box
-              sx={{
-                width: '100%',
-                minHeight: 140,
-                bgcolor: '#eafff6', // 연한 초록 배경
-                border: '2px dashed #1abc9c', // 초록 점선 테두리
-                borderRadius: 4,
-                display: 'flex',
-                alignItems: 'center',
-                px: 2,
-                py: 2,
-                gap: 2,
-                overflowX: 'auto',
-                boxSizing: 'border-box',
-              }}
-            >
-              {previews.map((src, idx) => (
+            <Box sx={{ display: 'flex', alignItems: 'center', width: '100%' }}>
+              <Box sx={{ display: 'flex', gap: 1, flex: 1, overflowX: 'auto' }}>
+                {previews.map((src, idx) => (
+                  <Box key={idx} sx={{ width: 80, height: 80, borderRadius: 2, overflow: 'hidden', bgcolor: '#eee', border: '1px solid #ddd', position: 'relative', flex: '0 0 auto' }}>
+                    <img src={src} alt={`preview-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <IconButton size="small" sx={{ position: 'absolute', top: 2, right: 2, bgcolor: '#fff', p: 0.5 }} onClick={e => { e.stopPropagation(); handleRemoveImage(idx); }}>
+                      <CloseIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                ))}
+                {/* 사진 추가 카드 */}
                 <Box
-                  key={idx}
-                  sx={{
-                    width: 100,
-                    height: 100,
-                    borderRadius: 3,
-                    overflow: 'hidden',
-                    bgcolor: '#fff',
-                    boxShadow: '0 2px 8px 0 rgba(0,0,0,0.07)',
-                    border: '1.5px solid #e0e0e0',
-                    position: 'relative',
-                    flex: '0 0 auto',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  sx={{ width: 80, height: 80, borderRadius: 2, border: '2px dashed #bbb', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', color: '#bbb', cursor: 'pointer', flex: '0 0 auto' }}
+                  onClick={() => fileInputRef.current?.click()}
                 >
-                  <img src={src} alt={`preview-${idx}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <IconButton
-                    size="small"
-                    sx={{
-                      position: 'absolute',
-                      top: 6,
-                      right: 6,
-                      bgcolor: '#fff',
-                      p: 0.5,
-                      boxShadow: '0 1px 4px 0 rgba(0,0,0,0.08)',
-                      '&:hover': { bgcolor: '#ffebee' },
-                    }}
-                    onClick={e => { e.stopPropagation(); handleRemoveImage(idx); }}
-                  >
-                    <CloseIcon fontSize="small" sx={{ color: '#e74c3c' }} />
-                  </IconButton>
+                  <ImageOutlinedIcon sx={{ fontSize: 32, mb: 0.5 }} />
+                  <Typography fontSize={14}>사진 추가</Typography>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    hidden
+                    ref={fileInputRef}
+                    onChange={handleImageChange}
+                  />
                 </Box>
-              ))}
-              {/* 사진 추가 카드 */}
-              <Box
-                sx={{
-                  width: 100,
-                  height: 100,
-                  borderRadius: 3,
-                  border: '2px dashed #1abc9c',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexDirection: 'column',
-                  color: '#1abc9c',
-                  cursor: 'pointer',
-                  flex: '0 0 auto',
-                  bgcolor: '#f8fffc',
-                  transition: 'border 0.2s',
-                  '&:hover': { border: '2px solid #16d9b6', bgcolor: '#e0fff3' },
-                }}
-                onClick={() => fileInputRef.current?.click()}
-              >
-                <ImageOutlinedIcon sx={{ fontSize: 32, mb: 0.5 }} />
-                <Typography fontSize={15} fontWeight="bold">사진 추가</Typography>
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  hidden
-                  ref={fileInputRef}
-                  onChange={handleImageChange}
-                />
               </Box>
             </Box>
           )}
+          {/* 안내문구 */}
+          <Typography color="#bbb" fontSize={13} mt={2} textAlign="center">
+            여러 장의 사진을 등록하면 이곳에서 스와이프할 수 있습니다
+          </Typography>
         </Box>
-        {imageError && <Typography color="error" fontSize={13} mb={1}>{imageError}</Typography>}
         {/* 제목 */}
         <Typography fontWeight="bold" fontSize={16} mb={0.5}>제목 <span style={{ color: '#ff6b6b', fontSize: 13 }}>(필수)</span></Typography>
         <TextField fullWidth size="small" placeholder="" value={title} onChange={e => setTitle(e.target.value)} sx={{ mb: 0.5 }} />
-        {formSubmitted && !isTitleValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
+        {!isTitleValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
         {/* 계열 */}
         <Typography fontWeight="bold" fontSize={16} mb={0.5}>계열</Typography>
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}>
@@ -413,7 +326,7 @@ const PostRegistration: React.FC = () => {
           onChange={e => setDesc(e.target.value)}
           sx={{ mb: 0.5 }}
         />
-        {formSubmitted && !isDescValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
+        {!isDescValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
         {/* 가격 */}
         <Typography fontWeight="bold" fontSize={16} mb={0.5}>가격 <span style={{ color: '#ff6b6b', fontSize: 13 }}>(필수)</span></Typography>
         <TextField
@@ -424,10 +337,10 @@ const PostRegistration: React.FC = () => {
           onChange={e => setPrice(e.target.value.replace(/[^0-9]/g, ''))}
           sx={{ mb: 0.5 }}
         />
-        {formSubmitted && !isPriceValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
+        {!isPriceValid && <Typography color="error" fontSize={13} mb={1}>필수 입력입니다</Typography>}
         {/* 이미지 필수 안내 */}
-        {showImageError && <Typography color="error" fontSize={13} mb={1}>사진을 1장 이상 등록해 주세요</Typography>}
-        {/* 등록하기 버튼 */}
+        {!isImagesValid && <Typography color="error" fontSize={13} mb={1}>사진을 1장 이상 등록해 주세요</Typography>}
+        {/* 수정하기 버튼 */}
         <Button
           fullWidth
           variant="contained"
@@ -443,13 +356,11 @@ const PostRegistration: React.FC = () => {
             '&:hover': {
               bgcolor: isFormValid ? '#16d9b6' : '#eee',
             },
-            cursor: 'pointer',
-            opacity: isFormValid ? 1 : 0.7,
           }}
-          disabled={false}
-          onClick={handleRegister}
+          disabled={!isFormValid}
+          onClick={handleSave}
         >
-          등록하기 <span style={{ marginLeft: 6 }}>🐾</span>
+          수정하기 <span style={{ marginLeft: 6 }}>🐾</span>
         </Button>
       </Box>
       {/* 이미지 크롭 다이얼로그 */}
@@ -464,12 +375,10 @@ const PostRegistration: React.FC = () => {
                 onCropChange={setCrop}
                 onZoomChange={setZoom}
                 onCropComplete={handleCropComplete}
-                // aspect prop 완전히 제거 (자유 비율)
               />
             ) : null}
           </Box>
           <Box sx={{ px: 2, py: 1 }}>
-            {/* Slider(확대/축소) UI 제거 */}
             <Box display="flex" justifyContent="flex-end" gap={1} mt={2}>
               <Button onClick={handleCropCancel}>취소</Button>
               <Button variant="contained" onClick={handleCropSave}>자르기</Button>
@@ -479,6 +388,4 @@ const PostRegistration: React.FC = () => {
       </Dialog>
     </Container>
   );
-};
-
-export default PostRegistration; 
+} 

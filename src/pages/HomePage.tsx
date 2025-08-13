@@ -21,6 +21,7 @@ import PetsIcon from '@mui/icons-material/Pets';
 import MenuIcon from '@mui/icons-material/Menu';
 import Menu from '@mui/material/Menu';
 import { useNavigate, useParams } from 'react-router-dom';
+import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined';
 
 type Post = {
   id: number;
@@ -108,6 +109,18 @@ const HomePage: React.FC = () => {
     const saved = localStorage.getItem('posts');
     return saved ? JSON.parse(saved) : initialPosts;
   });
+
+  // 3초마다 posts를 localStorage에서 새로고침 (폴링)
+  React.useEffect(() => {
+    const interval = setInterval(() => {
+      const saved = localStorage.getItem('posts');
+      if (saved) {
+        setPosts(JSON.parse(saved));
+      }
+    }, 3000);
+    return () => clearInterval(interval);
+  }, []);
+
   React.useEffect(() => {
     localStorage.setItem('posts', JSON.stringify(posts));
   }, [posts]);
@@ -128,6 +141,8 @@ const HomePage: React.FC = () => {
   const [menuAnchorEl, setMenuAnchorEl] = React.useState<null | HTMLElement>(null);
   const [menuPostId, setMenuPostId] = React.useState<number | null>(null);
   const navigate = useNavigate();
+  const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
+  const [deleteTargetId, setDeleteTargetId] = React.useState<number | null>(null);
 
   // 이미지 업로드 핸들러
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -263,6 +278,8 @@ const HomePage: React.FC = () => {
 
   // 메뉴(햄버거) 상태
   const handleMenuOpen = (event: React.MouseEvent<HTMLElement>, postId: number) => {
+    const post = posts.find(p => p.id === postId);
+    if (post?.userId !== myUid) return; // 내 글이 아니면 메뉴 안 띄움
     setMenuAnchorEl(event.currentTarget);
     setMenuPostId(postId);
   };
@@ -272,34 +289,44 @@ const HomePage: React.FC = () => {
     setMenuPostId(null);
   };
 
+  // 삭제 다이얼로그 열릴 때 상세/프로필 다이얼로그 닫기
+  React.useEffect(() => {
+    if (deleteDialogOpen) {
+      setDetailOpen(false);
+      setProfileOpen(false);
+    }
+  }, [deleteDialogOpen]);
+
   return (
     <Container maxWidth="xs" sx={{ bgcolor: '#fafafa', minHeight: '100vh', pt: 8, pb: 8 }}>
       {/* 상단 */}
-      <Box display="flex" alignItems="center" mb={2}>
+      <Box display="flex" alignItems="center" mb={2} gap={1}>
         <TextField
           select
           value="한양여자대학교"
           size="small"
-          sx={{ minWidth: 150, mr: 1 }}
+          variant="standard"
+          sx={{ minWidth: 120, bgcolor: 'transparent', border: 'none', fontWeight: 'bold', fontSize: 18, mr: 0, pl: 0, '& .MuiInputBase-root': { bgcolor: 'transparent', fontWeight: 'bold', fontSize: 18 }, '& fieldset': { border: 'none' } }}
+          InputProps={{ disableUnderline: true }}
         >
           <MenuItem value="한양여자대학교">한양여자대학교</MenuItem>
         </TextField>
-        <TextField
-          size="small"
-          placeholder="검색"
-          value={searchTerm}
-          onChange={e => setSearchTerm(e.target.value)}
-          InputProps={{
-            endAdornment: (
-              <InputAdornment position="end">
-                <IconButton>
-                  <SearchIcon />
-                </IconButton>
-              </InputAdornment>
-            ),
+        <Box flex={1} />
+        <IconButton
+          sx={{
+            bgcolor: '#fff',
+            color: '#1abc9c',
+            borderRadius: '999px',
+            width: 56,
+            height: 32,
+            boxShadow: 1,
+            border: '1px solid #e0e0e0',
+            '&:hover': { bgcolor: '#f0fdfa' }
           }}
-          sx={{ flex: 1 }}
-        />
+          onClick={() => navigate('/search')}
+        >
+          <SearchIcon />
+        </IconButton>
       </Box>
 
       {/* 게시물 리스트 */}
@@ -309,11 +336,13 @@ const HomePage: React.FC = () => {
           .map((post) => (
             <Card key={post.id} sx={{ display: 'flex', mb: 2, boxShadow: 0, cursor: 'pointer' }} onClick={() => navigate(`/post/${post.id}`)}>
               {post.image ? (
-                <Box sx={{ width: 64, height: 64, borderRadius: 2, m: 1, overflow: 'hidden', bgcolor: '#e0e0e0' }}>
+                <Box sx={{ width: 64, height: 64, borderRadius: 2, m: 1, overflow: 'hidden', bgcolor: '#e0e0e0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <img src={post.image} alt={post.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 </Box>
               ) : (
-                <Box sx={{ width: 64, height: 64, bgcolor: '#e0e0e0', borderRadius: 2, m: 1 }} />
+                <Box sx={{ width: 64, height: 64, bgcolor: '#e0e0e0', borderRadius: 2, m: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <ImageOutlinedIcon sx={{ color: '#ccc', fontSize: 32 }} />
+                </Box>
               )}
               <CardContent sx={{ flex: 1, p: 1 }}>
                 <Typography fontWeight="bold" fontSize={16}>{post.title}</Typography>
@@ -339,9 +368,11 @@ const HomePage: React.FC = () => {
                 </Typography>
               </CardContent>
               <Box display="flex" flexDirection="column" justifyContent="space-between" alignItems="center" p={1}>
-                <IconButton size="small" onClick={e => { e.stopPropagation(); handleMenuOpen(e, post.id); }}>
-                  <MenuIcon />
-                </IconButton>
+                {post.userId === myUid && (
+                  <IconButton size="small" /* onClick 제거: UX만 남김 */>
+                    <MenuIcon />
+                  </IconButton>
+                )}
                 {post.userId !== myUid && (
                   <IconButton size="small" color={post.isLiked ? 'warning' : 'default'} onClick={e => { e.stopPropagation(); handleToggleLike(post.id); }}>
                     {post.isLiked ? <StarIcon /> : <StarBorderIcon />}
@@ -365,7 +396,7 @@ const HomePage: React.FC = () => {
           fontWeight: 'bold',
           boxShadow: 2,
         }}
-        onClick={() => navigate('/post/new')}
+        onClick={() => navigate('/post/registration')}
       >
         {editPostId ? '수정하기' : '+ Posting'}
       </Button>
@@ -600,11 +631,55 @@ const HomePage: React.FC = () => {
           </MenuItem>
         )}
         {menuPostId && posts.find(p => p.id === menuPostId)?.userId === myUid && (
-          <MenuItem onClick={() => { handleDelete(menuPostId); handleMenuClose(); }}>
+          <MenuItem
+            onClick={() => {
+              handleMenuClose();
+              setTimeout(() => {
+                setDeleteTargetId(menuPostId);
+                setDeleteDialogOpen(true);
+              }, 100);
+            }}
+          >
             <span style={{ color: '#d32f2f', fontWeight: 'bold' }}>삭제</span>
           </MenuItem>
         )}
       </Menu>
+
+      {/* 삭제 확인 다이얼로그 */}
+      <Dialog
+        open={deleteDialogOpen}
+        onClose={() => { setDeleteDialogOpen(false); setDeleteTargetId(null); }}
+        PaperProps={{ sx: { zIndex: 2000, pointerEvents: 'auto' } }}
+      >
+        <Box sx={{ p: 3, minWidth: 300 }}>
+          <Typography fontWeight="bold" fontSize={20} mb={2}>정말 삭제하시겠습니까?</Typography>
+          <Typography color="text.secondary" mb={3}>이 게시글은 삭제 후 복구할 수 없습니다.</Typography>
+          <Box display="flex" justifyContent="flex-end" gap={2}>
+            <Button
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setDeleteTargetId(null);
+              }}
+              sx={{ color: '#888', pointerEvents: 'auto' }}
+            >
+              취소
+            </Button>
+            <Button
+              onClick={() => {
+                if (deleteTargetId !== null) {
+                  handleDelete(deleteTargetId);
+                  setDeleteTargetId(null);
+                  setDeleteDialogOpen(false);
+                  navigate(-1); // 이전 화면으로 이동
+                }
+              }}
+              sx={{ color: '#d32f2f', fontWeight: 'bold', pointerEvents: 'auto' }}
+            >
+              삭제
+            </Button>
+          </Box>
+        </Box>
+      </Dialog>
     </Container>
   );
 };
