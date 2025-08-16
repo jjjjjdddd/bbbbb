@@ -585,7 +585,12 @@ const HomePage: React.FC = () => {
                   시세: {selectedPost.marketPrice?.toLocaleString()}원
                 </Typography>
               </Box>
-              <Button fullWidth variant="contained" sx={{ bgcolor: '#1abc9c', color: '#fff', fontWeight: 'bold', borderRadius: 2, py: 1.2, fontSize: 18 }}>
+              <Button 
+                fullWidth 
+                variant="contained" 
+                sx={{ bgcolor: '#1abc9c', color: '#fff', fontWeight: 'bold', borderRadius: 2, py: 1.2, fontSize: 18 }}
+                onClick={() => navigate('/chat')}
+              >
                 채팅하기
               </Button>
             </Box>

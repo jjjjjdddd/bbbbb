@@ -13,6 +13,7 @@ import PostRegistration from './pages/PostRegistration';
 import ProfilePage from './pages/ProfilePage';
 import EditPage from './pages/EditPage';
 import SearchPage from './pages/SearchPage';
+import ChatPage from './pages/ChatPage';
 
 // Theme
 const theme = createTheme({
@@ -67,6 +68,7 @@ const App: React.FC = () => {
         <Route path="/profile/:userId" element={<ProfilePage />} />
         <Route path="/post/edit/:postId" element={<EditPage />} />
         <Route path="/search" element={<SearchPage />} />
+        <Route path="/chat" element={<ChatPage />} />
       </Routes>
     </ThemeProvider>
   );
